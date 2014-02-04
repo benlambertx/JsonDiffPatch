@@ -1,7 +1,26 @@
 
 var expect = require("expect.js");
-var jsondiffpatch = require("../src/jsondiffpatch.js");
-jsondiffpatch.config.diff_match_patch = require('../lib/diff_match_patch_uncompressed.js');
+var jsondiffpatch = require("../src/main.js");
+var DiffPatcher = jsondiffpatch.DiffPatcher;
+
+var isArray = (typeof Array.isArray == 'function') ?
+    // use native function
+    Array.isArray :
+    // use instanceof operator
+    function(a) {
+        return typeof a == 'object' && a instanceof Array;
+    };
+
+var dateReviver = function(key, value){
+    var a;
+    if (typeof value === 'string') {
+        a = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2}(?:\.\d*)?)(Z|([+\-])(\d{2}):(\d{2}))$/.exec(value);
+        if (a) {
+            return new Date(Date.UTC(+a[1], +a[2] - 1, +a[3], +a[4], +a[5], +a[6]));
+        }
+    }
+    return value;
+};
 
 var deepEqual = function(obj1, obj2) {
     if (obj1 === obj2) {
@@ -13,17 +32,19 @@ var deepEqual = function(obj1, obj2) {
             if (!(obj2 instanceof Date)) return false;
             return obj1.toString() === obj2.toString();
         }
-        if (jsondiffpatch.isArray(obj1)) {
-            if (!jsondiffpatch.isArray(obj2)) return false;
+        if (isArray(obj1)) {
+            if (!isArray(obj2)) return false;
             if (obj1.length !== obj2.length) return false;
             var length = obj1.length;
             for (var i = 0; i < length; i++) {
                 if (!deepEqual(obj1[i], obj2[i])) return false;
             }
             return true;
+        } else {
+            if (isArray(obj2)) return false;
         }
         for (var name in obj2) {
-            if (typeof obj1[name] == undefined) return false;
+            if (typeof obj1[name] === 'undefined') return false;
         }
         for (var name in obj1) {
             if (!deepEqual(obj1[name], obj2[name])) return false;
@@ -55,11 +76,11 @@ var valueDescription = function(value) {
     if (value instanceof Date) {
         return "Date";
     }
-    if (jsondiffpatch.isArray(value)) {
+    if (isArray(value)) {
         return "array";
     }
     if (typeof value == 'string') {
-        if (value.length > jsondiffpatch.config.textDiffMinLength) {
+        if (value.length >= 60) {
             return "large text"
         }
     }
@@ -70,13 +91,13 @@ var clone = function(obj) {
     if (typeof obj == 'undefined') {
         return undefined;
     }
-    return JSON.parse(JSON.stringify(obj), jsondiffpatch.dateReviver);
+    return JSON.parse(JSON.stringify(obj), dateReviver);
 }
 
-describe('Diff and Patch Examples', function(){
-    before(function(){
-        this.instance = jsondiffpatch.create();
-    });
+describe('DiffPatcher', function(){
+	before(function(){
+		this.instance = new DiffPatcher();
+	});
     var examples = require('./examples/diffpatch');
     Object.keys(examples).forEach(function(groupName){
         var group = examples[groupName];
@@ -126,4 +147,4 @@ describe('Diff and Patch Examples', function(){
             });
         });
     });
-});
+})
